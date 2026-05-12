@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>News Credibility Checker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="brand-icon">📰</div>
+      <div>
+        <h1>Credibility</h1>
+        <p class="subtitle">Check the current page for fake news, clickbait, and reliability.</p>
+      </div>
+    </header>
+
+    <div class="field">
+      <label>Page URL</label>
+      <div class="url-row">
+        <input id="url" type="text" readonly />
+        <button id="copyUrl">Copy</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Title</label>
+      <input id="title" type="text" />
+    </div>
+
+    <div class="field">
+      <label>Content</label>
+      <textarea id="content" rows="8" placeholder="Page content will appear here..."></textarea>
+    </div>
+
+    <button id="analyzeBtn">Analyze Page</button>
+    <div id="status" class="status"></div>
+
+    <div id="result" class="result hidden">
+      <div id="summary" class="summary"></div>
+      <div class="meta-row"><span>Backend</span><strong id="backend_source">-</strong></div>
+      <div class="score-row"><span>Credibility</span><strong id="credibility">-</strong></div>
+      <div class="score-row"><span>Fake Probability</span><strong id="fake_probability">-</strong></div>
+      <div class="score-row"><span>Clickbait Score</span><strong id="clickbait_score">-</strong></div>
+      <div class="score-row"><span>News Verification</span><strong id="news_verification_score">-</strong></div>
+      <div class="score-row"><span>Stance Score</span><strong id="stance_score">-</strong></div>
+      <div class="score-row"><span>Source Reputation</span><strong id="source_reputation">-</strong></div>
+      <div class="raw-response">
+        <label for="rawResponse">Raw API Response</label>
+        <textarea id="rawResponse" rows="7" readonly></textarea>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

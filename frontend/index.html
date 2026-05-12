@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI News Credibility Checker</title>
+  <style>
+    :root {
+      --bg-1: #071326;
+      --bg-2: #10294f;
+      --bg-3: #1e3f73;
+      --surface: rgba(10, 18, 35, 0.62);
+      --surface-strong: rgba(13, 22, 43, 0.82);
+      --surface-border: rgba(255, 255, 255, 0.12);
+      --text-main: #f6fbff;
+      --text-soft: #aac0dd;
+      --text-muted: #7f97b8;
+      --accent: #7dd3fc;
+      --accent-strong: #38bdf8;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --shadow: 0 24px 60px rgba(3, 10, 25, 0.38);
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --transition: 220ms ease;
+      --score-color: var(--warning);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 34%),
+        radial-gradient(circle at 85% 15%, rgba(99, 102, 241, 0.24), transparent 26%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2) 45%, var(--bg-3));
+      color: var(--text-main);
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 18px;
+      overflow-x: hidden;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: auto;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      filter: blur(28px);
+      opacity: 0.28;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::before {
+      top: 6%;
+      left: -70px;
+      background: #0ea5e9;
+    }
+
+    body::after {
+      right: -80px;
+      bottom: 4%;
+      background: #2563eb;
+    }
+
+    .app-shell {
+      position: relative;
+      z-index: 1;
+      width: min(1180px, 100%);
+    }
+
+    .card {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 24px;
+      padding: 28px;
+      border-radius: var(--radius-xl);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+      border: 1px solid var(--surface-border);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      min-width: 0;
+    }
+
+    .hero {
+      margin-bottom: 26px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(125, 211, 252, 0.1);
+      border: 1px solid rgba(125, 211, 252, 0.16);
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 18px 0 10px;
+      font-size: clamp(2rem, 3vw, 3.2rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 0;
+      max-width: 620px;
+      color: var(--text-soft);
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .field {
+      display: grid;
+      gap: 10px;
+    }
+
+    .field label {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #d7e7f8;
+    }
+
+    .input,
+    .textarea {
+      width: 100%;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-md);
+      background: rgba(6, 15, 31, 0.7);
+      color: var(--text-main);
+      padding: 15px 16px;
+      outline: none;
+      transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+      font: inherit;
+    }
+
+    .input::placeholder,
+    .textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .input:focus,
+    .textarea:focus {
+      border-color: rgba(125, 211, 252, 0.45);
+      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .textarea {
+      min-height: 220px;
+      resize: vertical;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+      margin-top: 6px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-width: 180px;
+      padding: 14px 20px;
+      border: 0;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #38bdf8, #2563eb);
+      color: white;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 16px 28px rgba(37, 99, 235, 0.3);
+      transition: transform var(--transition), box-shadow var(--transition), opacity var(--transition);
+    }
+
+    .button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 34px rgba(37, 99, 235, 0.38);
+    }
+
+    .button:disabled {
+      opacity: 0.72;
+      cursor: wait;
+      box-shadow: none;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .button.loading .spinner {
+      display: inline-block;
+    }
+
+    .helper-text,
+    .error-text {
+      margin: 0;
+      font-size: 0.92rem;
+    }
+
+    .helper-text {
+      color: var(--text-muted);
+    }
+
+    .error-text {
+      display: none;
+      color: #fecaca;
+      background: rgba(127, 29, 29, 0.25);
+      border: 1px solid rgba(248, 113, 113, 0.24);
+      border-radius: 14px;
+      padding: 13px 14px;
+    }
+
+    .status-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--text-soft);
+      font-size: 0.93rem;
+      min-height: 24px;
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 rgba(125, 211, 252, 0.4);
+      animation: pulse 1.7s infinite;
+      display: none;
+    }
+
+    .status-label.active .pulse-dot {
+      display: inline-block;
+    }
+
+    .results-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 100%;
+      background: linear-gradient(180deg, rgba(8, 17, 33, 0.84), rgba(7, 13, 27, 0.72));
+    }
+
+    .results-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .results-title {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .results-subtitle {
+      margin: 8px 0 0;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .result-state {
+      display: grid;
+      place-items: center;
+      text-align: center;
+      flex: 1;
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-lg);
+      padding: 28px 20px;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .result-state strong {
+      display: block;
+      color: #dbeafe;
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
+
+    .results-content {
+      display: none;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .results-content.visible {
+      display: block;
+    }
+
+    .score-hero {
+      padding: 22px;
+      border-radius: 22px;
+      background:
+        linear-gradient(140deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)),
+        radial-gradient(circle at top right, rgba(125, 211, 252, 0.18), transparent 46%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 22px;
+    }
+
+    .score-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-soft);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .score-value {
+      margin: 14px 0 8px;
+      font-size: clamp(3rem, 8vw, 4.6rem);
+      line-height: 1;
+      letter-spacing: -0.05em;
+      color: var(--score-color);
+      text-shadow: 0 0 24px color-mix(in srgb, var(--score-color) 28%, transparent);
+    }
+
+    .score-caption {
+      margin: 0;
+      color: var(--text-soft);
+      line-height: 1.6;
+      font-size: 0.98rem;
+    }
+
+    .metrics {
+      display: grid;
+      gap: 14px;
+    }
+
+    .metric-card {
+      padding: 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transform: translateY(10px);
+      opacity: 0;
+      animation: fadeUp 0.5s ease forwards;
+    }
+
+    .metric-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .metric-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.96rem;
+      color: #e7f2ff;
+      font-weight: 600;
+    }
+
+    .metric-icon {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent);
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .metric-value {
+      color: white;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 11px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .bar-fill {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(125, 211, 252, 0.9), rgba(37, 99, 235, 0.95));
+      transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.3s ease;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .legend-chip {
+      padding: 9px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      color: var(--text-soft);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .results-content .metric-card:nth-child(1) { animation-delay: 0.08s; }
+    .results-content .metric-card:nth-child(2) { animation-delay: 0.14s; }
+    .results-content .metric-card:nth-child(3) { animation-delay: 0.2s; }
+    .results-content .metric-card:nth-child(4) { animation-delay: 0.26s; }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(125, 211, 252, 0.45);
+      }
+      70% {
+        box-shadow: 0 0 0 12px rgba(125, 211, 252, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(125, 211, 252, 0);
+      }
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .card {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 16px;
+      }
+
+      .card,
+      .panel {
+        padding: 18px;
+      }
+
+      .score-hero {
+        padding: 18px;
+      }
+
+      .button {
+        width: 100%;
+      }
+
+      .results-head {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <section class="card">
+      <section class="panel">
+        <div class="hero">
+          <span class="eyebrow">AI Verification Suite</span>
+          <h1>AI News Credibility Checker</h1>
+          <p class="subtitle">Verify news using AI, real-time sources, and stance analysis.</p>
+        </div>
+
+        <form class="form-grid" id="news-form">
+          <div class="field">
+            <label for="news-title">News Title</label>
+            <input
+              class="input"
+              id="news-title"
+              name="title"
+              type="text"
+              placeholder="Enter the headline you want to verify"
+              required
+            >
+          </div>
+
+          <div class="field">
+            <label for="news-content">News Content</label>
+            <textarea
+              class="textarea"
+              id="news-content"
+              name="content"
+              placeholder="Paste the news article, social post, or report text here"
+              required
+            ></textarea>
+          </div>
+
+          <div class="actions">
+            <button class="button" id="analyze-button" type="submit">
+              <span class="spinner" aria-hidden="true"></span>
+              <span id="button-text">Analyze News</span>
+            </button>
+            <div class="status-label" id="status-label" aria-live="polite">
+              <span class="pulse-dot" aria-hidden="true"></span>
+              <span id="status-text">Ready for analysis</span>
+            </div>
+          </div>
+
+          <p class="helper-text">The app sends your title and content to the local verification API at <code>http://127.0.0.1:8001/api/check</code>.</p>
+          <p class="error-text" id="error-message" role="alert"></p>
+        </form>
+      </section>
+
+      <aside class="panel results-panel">
+        <div>
+          <div class="results-head">
+            <div>
+              <h2 class="results-title">Analysis Results</h2>
+              <p class="results-subtitle">A live credibility summary with model confidence, source verification, and stance alignment.</p>
+            </div>
+          </div>
+
+          <div class="result-state" id="empty-state">
+            <div>
+              <strong>No analysis yet</strong>
+              Submit a title and article content to generate a credibility profile.
+            </div>
+          </div>
+
+          <div class="results-content" id="results-content">
+            <section class="score-hero">
+              <span class="score-label">Credibility Score</span>
+              <div class="score-value" id="credibility-score">0%</div>
+              <p class="score-caption" id="credibility-caption">Waiting for analysis...</p>
+            </section>
+
+            <section class="metrics" id="metrics-container"></section>
+
+            <div class="legend">
+              <span class="legend-chip">Green: high credibility</span>
+              <span class="legend-chip">Orange: mixed signals</span>
+              <span class="legend-chip">Red: elevated risk</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("news-form");
+    const titleInput = document.getElementById("news-title");
+    const contentInput = document.getElementById("news-content");
+    const analyzeButton = document.getElementById("analyze-button");
+    const buttonText = document.getElementById("button-text");
+    const statusLabel = document.getElementById("status-label");
+    const statusText = document.getElementById("status-text");
+    const errorMessage = document.getElementById("error-message");
+    const emptyState = document.getElementById("empty-state");
+    const resultsContent = document.getElementById("results-content");
+    const credibilityScore = document.getElementById("credibility-score");
+    const credibilityCaption = document.getElementById("credibility-caption");
+    const metricsContainer = document.getElementById("metrics-container");
+
+    const metricConfig = [
+      { key: "fake_probability", label: "Fake Probability", icon: "!", invert: true },
+      { key: "news_verification_score", label: "News Verification Score", icon: "N" },
+      { key: "stance_score", label: "Stance Score", icon: "S" },
+      { key: "clickbait_score", label: "Clickbait Risk", icon: "C" }
+    ];
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function normalizeMetric(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return 0;
+      }
+      return numeric <= 1 ? numeric * 100 : numeric;
+    }
+
+    function scoreColor(score) {
+      if (score > 80) {
+        return "#22c55e";
+      }
+      if (score >= 50) {
+        return "#f59e0b";
+      }
+      return "#ef4444";
+    }
+
+    function scoreSummary(score) {
+      if (score > 80) {
+        return "High credibility detected based on source verification, stance alignment, and model signals.";
+      }
+      if (score >= 50) {
+        return "Mixed credibility signals detected. Review the article carefully before sharing.";
+      }
+      return "Low credibility pattern detected. Treat this news item as potentially misleading.";
+    }
+
+    function metricBarColor(score) {
+      if (score > 80) {
+        return "linear-gradient(90deg, rgba(34,197,94,0.92), rgba(22,163,74,0.98))";
+      }
+      if (score >= 50) {
+        return "linear-gradient(90deg, rgba(245,158,11,0.92), rgba(251,146,60,0.98))";
+      }
+      return "linear-gradient(90deg, rgba(239,68,68,0.92), rgba(220,38,38,0.98))";
+    }
+
+    function setLoading(isLoading) {
+      analyzeButton.disabled = isLoading;
+      analyzeButton.classList.toggle("loading", isLoading);
+      buttonText.textContent = isLoading ? "Analyzing..." : "Analyze News";
+      statusLabel.classList.toggle("active", isLoading);
+      statusText.textContent = isLoading ? "Analyzing article credibility..." : "Ready for analysis";
+    }
+
+    function clearResults() {
+      errorMessage.style.display = "none";
+      errorMessage.textContent = "";
+      metricsContainer.innerHTML = "";
+      resultsContent.classList.remove("visible");
+      emptyState.style.display = "grid";
+      credibilityScore.textContent = "0%";
+      credibilityCaption.textContent = "Waiting for analysis...";
+      document.documentElement.style.setProperty("--score-color", "#f59e0b");
+    }
+
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.style.display = "block";
+      statusText.textContent = "Analysis failed";
+    }
+
+    function createMetricCard(config, rawValue) {
+      const percentValue = clamp(normalizeMetric(rawValue), 0, 100);
+      const visualValue = config.invert ? 100 - percentValue : percentValue;
+      const card = document.createElement("article");
+      card.className = "metric-card";
+
+      card.innerHTML = `
+        <div class="metric-top">
+          <div class="metric-label">
+            <span class="metric-icon">${config.icon}</span>
+            <span>${config.label}</span>
+          </div>
+          <span class="metric-value">${percentValue.toFixed(1)}%</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill"></div>
+        </div>
+      `;
+
+      const bar = card.querySelector(".bar-fill");
+      requestAnimationFrame(() => {
+        bar.style.width = `${visualValue}%`;
+        bar.style.background = metricBarColor(visualValue);
+      });
+
+      return card;
+    }
+
+    function renderResults(data) {
+      const overallScore = clamp(normalizeMetric(data.credibility_score), 0, 100);
+      const overallColor = scoreColor(overallScore);
+
+      emptyState.style.display = "none";
+      resultsContent.classList.add("visible");
+
+      credibilityScore.textContent = `${overallScore.toFixed(1)}%`;
+      credibilityCaption.textContent = scoreSummary(overallScore);
+      document.documentElement.style.setProperty("--score-color", overallColor);
+
+      metricsContainer.innerHTML = "";
+
+      metricConfig.forEach((config) => {
+        const card = createMetricCard(config, data[config.key]);
+        metricsContainer.appendChild(card);
+      });
+
+      statusText.textContent = "Analysis complete";
+    }
+
+    async function analyzeNews(event) {
+      event.preventDefault();
+
+      const title = titleInput.value.trim();
+      const content = contentInput.value.trim();
+
+      if (!title || !content) {
+        showError("Please enter both the news title and the news content.");
+        return;
+      }
+
+      clearResults();
+      setLoading(true);
+
+      try {
+        const response = await fetch("http://127.0.0.1:8001/api/check", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title,
+            content
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`);
+        }
+
+        const result = await response.json();
+        renderResults(result);
+      } catch (error) {
+        showError("Unable to analyze the news right now. Make sure the backend is running on http://127.0.0.1:8001 and try again.");
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    form.addEventListener("submit", analyzeNews);
+  </script>
+</body>
+</html>

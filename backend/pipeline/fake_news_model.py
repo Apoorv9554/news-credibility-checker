@@ -1,11 +1,34 @@
 from pathlib import Path
-from typing import Optional
 
 import joblib
 import numpy as np
 
 _vectorizer = None
 _model = None
+
+
+def _force_single_thread(estimator) -> None:
+    """
+    Some persisted sklearn ensembles try to create worker pools during
+    prediction, which can fail in restricted Windows environments.
+    """
+    if estimator is None:
+        return
+
+    if hasattr(estimator, "n_jobs"):
+        try:
+            estimator.n_jobs = 1
+        except Exception:
+            pass
+
+    for attr in ("estimators_", "estimators"):
+        children = getattr(estimator, attr, None)
+        if not children:
+            continue
+
+        for child in children:
+            nested = child[1] if isinstance(child, tuple) and len(child) == 2 else child
+            _force_single_thread(nested)
 
 
 def _load_models_if_needed():
@@ -32,6 +55,7 @@ def _load_models_if_needed():
 
     _vectorizer = joblib.load(vectorizer_path)
     _model = joblib.load(model_path)
+    _force_single_thread(_model)
     print("[fake_news_model] Loaded fake news vectorizer and model.")
 
 
@@ -47,6 +71,10 @@ def predict_fake_probability(text: str) -> float:
         # Model not trained or not found; neutral probability
         return 0.5
 
-    X_vec = _vectorizer.transform([text])
-    proba = _model.predict_proba(X_vec)[0][1]  # probability of label=1 (fake)
-    return float(np.clip(proba, 0.0, 1.0))
+    try:
+        X_vec = _vectorizer.transform([text])
+        proba = _model.predict_proba(X_vec)[0][1]  # probability of label=1 (fake)
+        return float(np.clip(proba, 0.0, 1.0))
+    except Exception as exc:
+        print(f"[fake_news_model] Prediction fallback triggered: {exc}")
+        return 0.5

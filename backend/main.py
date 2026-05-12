@@ -35,7 +35,7 @@ app.add_middleware(
 def root():
     return {
         "message": "News Credibility Checker API is running 🚀",
-        "docs": "http://127.0.0.1:8000/docs"
+        "docs": "http://127.0.0.1:8001/docs"
     }
 
 
@@ -74,6 +74,58 @@ class ArticleResponse(BaseModel):
     credibility_score: float
 
 
+def build_fallback_response(url: Optional[str], title: str, content: str) -> ArticleResponse:
+    return ArticleResponse(
+        url=url,
+        title=title,
+        content=content,
+        clickbait_score=0.7,
+        fake_probability=0.5,
+        news_verification_score=0.3,
+        stance_score=0.5,
+        source_reputation=0.3,
+        credibility_score=52.5,
+    )
+
+
+def run_analysis(url: Optional[str], title: str, content: str) -> ArticleResponse:
+    clean_title = clean_input_text(title)
+    clean_content = clean_input_text(content)
+
+    if len(clean_title) > 500:
+        clean_title = clean_title[:500].strip()
+
+    if len(clean_content) > 12000:
+        clean_content = clean_content[:12000].strip()
+
+    if not clean_title:
+        clean_title = "Untitled article"
+
+    if not clean_content:
+        clean_content = "No article content extracted."
+
+    try:
+        result = analyze_article(
+            title=clean_title,
+            content=clean_content,
+            url=url,
+        )
+    except Exception as exc:
+        print(f"[api] Unexpected analysis error: {exc}")
+        return build_fallback_response(
+            url=url,
+            title=clean_title,
+            content=clean_content,
+        )
+
+    return ArticleResponse(
+        url=url,
+        title=clean_title,
+        content=clean_content,
+        **result
+    )
+
+
 # -----------------------------
 # Main API Endpoint
 # -----------------------------
@@ -83,21 +135,20 @@ async def check_article(payload: ArticleRequest):
     Analyze a news article and return credibility metrics.
     """
 
-    # 🔥 Clean input automatically (fix JSON/quotes issues)
-    clean_title = clean_input_text(payload.title)
-    clean_content = clean_input_text(payload.content)
-
-    # Run analysis pipeline
-    result = analyze_article(
-        title=clean_title,
-        content=clean_content,
+    return run_analysis(
         url=payload.url,
+        title=payload.title,
+        content=payload.content,
     )
 
-    # Return structured response
-    return ArticleResponse(
+
+@app.post("/api/extension-check", response_model=ArticleResponse)
+async def check_article_for_extension(payload: ArticleRequest):
+    """
+    Dedicated endpoint for the browser extension with extra input hardening.
+    """
+    return run_analysis(
         url=payload.url,
-        title=clean_title,
-        content=clean_content,
-        **result
+        title=payload.title,
+        content=payload.content,
     )

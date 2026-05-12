@@ -30,8 +30,9 @@ news-credibility-checker/
 
 1. Open a terminal in the `backend` folder.
 2. Create and activate a virtual environment.
-3. Install dependencies from `requirements.txt`.
-4. Start the FastAPI server with Uvicorn.
+3. Create a project-root `.env` file from `.env.example` and add your API keys.
+4. Install dependencies from `requirements.txt`.
+5. Start the FastAPI server with Uvicorn.
 
 Example:
 
@@ -41,6 +42,13 @@ python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
+```
+
+Example `.env` file in the project root:
+
+```env
+GNEWS_API_KEY=your_gnews_key_here
+NEWS_API_KEY=your_newsapi_key_here
 ```
 
 The API will be available at:
@@ -59,6 +67,7 @@ The API will be available at:
 - The backend currently returns credibility-related scores for article analysis.
 - The `frontend` and `extension` folders contain separate components of the overall system.
 - The latest backend version removes sentiment analysis from the scoring pipeline.
+- Do not commit your real `.env` file or API keys to GitHub.
 
 ## Suggested GitHub Repository Name
 

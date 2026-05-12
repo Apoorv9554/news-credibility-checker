@@ -1,61 +1,103 @@
-import requests
-from urllib.parse import urlparse
+import os
+import re
+from difflib import SequenceMatcher
 
-NEWS_API_KEY = "6395b3b535fc448ca824844938639b1b"
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+GNEWS_API_KEY = os.getenv("GNEWS_API_KEY")
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+
+
+def _text_similarity(text_a: str, text_b: str) -> float:
+    return SequenceMatcher(None, text_a.lower().strip(), text_b.lower().strip()).ratio()
 
 
 def extract_keywords(title: str) -> str:
+    title = re.sub(r"[^a-zA-Z0-9 ]", "", title)
+    words = title.split()
+
     stop_words = {
-        "the","is","its","for","with","and","a","an","to","of","in"
+        "the", "is", "its", "for", "with", "and", "a", "an", "to", "of", "in",
+        "on", "at", "by", "from", "as", "was", "were", "has", "had"
     }
 
-    words = [
-        word.lower()
-        for word in title.split()
-        if word.lower() not in stop_words
-    ]
-
-    return " ".join(words[:6])
+    # Keep stronger query words and trim the query for better news API matches.
+    filtered = [w for w in words if w.lower() not in stop_words]
+    return " ".join(filtered[:6])
 
 
 def verify_with_news_api(title: str):
-    query = extract_keywords(title)
+    base_query = extract_keywords(title)
 
-    url = "https://newsapi.org/v2/everything"
+    queries = [
+        base_query,
+        " ".join(title.split()[:5]),
+        " ".join(title.split()[:3]),
+    ]
 
-    params = {
-        "q": query,
-        "apiKey": NEWS_API_KEY,
-        "language": "en",
-        "sortBy": "relevancy",
-        "pageSize": 10,
-    }
+    if GNEWS_API_KEY:
+        for q in queries:
+            try:
+                params = {
+                    "q": q,
+                    "lang": "en",
+                    "max": 10,
+                    "apikey": GNEWS_API_KEY,
+                }
+                res = requests.get("https://gnews.io/api/v4/search", params=params, timeout=10)
+                data = res.json()
+                articles = data.get("articles", [])
+                count = len(articles)
 
-    try:
-        response = requests.get(url, params=params)
-        data = response.json()
+                print(f"[GNEWS] Query: {q}, Articles: {count}")
 
-        articles = data.get("articles", [])
-        count = len(articles)
+                if count > 0:
+                    return _score_articles(count), articles
 
-        print(f"[news_verifier] Query: {query}, Articles found: {count}")
+            except Exception as e:
+                print(f"[GNEWS ERROR]: {e}")
+    else:
+        print("[GNEWS] API key not configured; skipping GNews lookup.")
 
-        if count >= 10:
-            score = 1.0
-        elif count >= 6:
-            score = 0.9
-        elif count >= 4:
-            score = 0.8
-        elif count >= 2:
-            score = 0.7
-        elif count >= 1:
-            score = 0.6
-        else:
-            score = 0.2
+    if NEWS_API_KEY:
+        for q in queries:
+            try:
+                params = {
+                    "q": q,
+                    "apiKey": NEWS_API_KEY,
+                    "language": "en",
+                    "sortBy": "relevancy",
+                    "pageSize": 10,
+                }
+                res = requests.get("https://newsapi.org/v2/everything", params=params, timeout=10)
+                data = res.json()
+                articles = data.get("articles", [])
+                count = len(articles)
 
-        return score, articles
+                print(f"[NewsAPI] Query: {q}, Articles: {count}")
 
-    except Exception as e:
-        print(f"[news_verifier] Error: {e}")
-        return 0.5, []
-    
+                if count > 0:
+                    return _score_articles(count), articles
+
+            except Exception as e:
+                print(f"[NewsAPI ERROR]: {e}")
+    else:
+        print("[NewsAPI] API key not configured; skipping NewsAPI lookup.")
+
+    return 0.3, []
+
+
+def _score_articles(count: int) -> float:
+    if count >= 8:
+        return 1.0
+    elif count >= 5:
+        return 0.85
+    elif count >= 3:
+        return 0.75
+    elif count >= 1:
+        return 0.65
+    else:
+        return 0.3

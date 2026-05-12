@@ -1,8 +1,21 @@
 from typing import Optional
+import math
 from .news_verifier import verify_with_news_api
 from .fake_news_model import predict_fake_probability
 from .clickbait_model import predict_clickbait_score
 from .stance_verifier import compute_stance_score
+
+
+def _safe_score(value: float, fallback: float) -> float:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+    if not math.isfinite(numeric):
+        return fallback
+
+    return min(1.0, max(0.0, numeric))
 
 
 def analyze_article(
@@ -13,10 +26,18 @@ def analyze_article(
 
     # 1) Fake-news probability
     text_for_fake_model = f"{title} {content}"
-    fake_probability = predict_fake_probability(text_for_fake_model)
+    try:
+        fake_probability = predict_fake_probability(text_for_fake_model)
+    except Exception as e:
+        print(f"[analyzer] Fake model error: {e}")
+        fake_probability = 0.5
 
     # 2) Clickbait score
-    clickbait_score = predict_clickbait_score(title)
+    try:
+        clickbait_score = predict_clickbait_score(title)
+    except Exception as e:
+        print(f"[analyzer] Clickbait model error: {e}")
+        clickbait_score = 0.7
 
     # 3) News API verification
     try:
@@ -34,7 +55,17 @@ def analyze_article(
         print(f"[analyzer] Stance error: {e}")
         stance_score = 0.5
 
+    fake_probability = _safe_score(fake_probability, 0.5)
+    clickbait_score = _safe_score(clickbait_score, 0.7)
+    news_verification_score = _safe_score(news_verification_score, 0.3)
+    stance_score = _safe_score(stance_score, 0.5)
+
     print(f"[analyzer] Stance score: {stance_score}")
+
+    # If external reporting is weak but the article appears trustworthy,
+    # keep the score from dropping too far.
+    if news_verification_score < 0.5 and fake_probability < 0.6 and clickbait_score > 0.7:
+        news_verification_score = 0.5
 
     # -----------------------------
     # 5) Improved Credibility Calculation

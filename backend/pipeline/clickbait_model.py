@@ -7,6 +7,30 @@ _vectorizer = None
 _model = None
 
 
+def _force_single_thread(estimator) -> None:
+    """
+    Keep persisted sklearn estimators on a single thread so prediction
+    stays compatible with restricted Windows environments.
+    """
+    if estimator is None:
+        return
+
+    if hasattr(estimator, "n_jobs"):
+        try:
+            estimator.n_jobs = 1
+        except Exception:
+            pass
+
+    for attr in ("estimators_", "estimators"):
+        children = getattr(estimator, attr, None)
+        if not children:
+            continue
+
+        for child in children:
+            nested = child[1] if isinstance(child, tuple) and len(child) == 2 else child
+            _force_single_thread(nested)
+
+
 def _load_models_if_needed():
     """
     Lazy-loads the TF-IDF vectorizer and Logistic Regression model
@@ -31,6 +55,7 @@ def _load_models_if_needed():
 
     _vectorizer = joblib.load(vectorizer_path)
     _model = joblib.load(model_path)
+    _force_single_thread(_model)
     print("[clickbait_model] Loaded clickbait vectorizer and model.")
 
 
@@ -51,7 +76,11 @@ def predict_clickbait_score(headline: str) -> float:
     if not headline.strip():
         return 0.7
 
-    X_vec = _vectorizer.transform([headline])
-    # We trained the model so that label 1 = NON-clickbait
-    proba_non_clickbait = _model.predict_proba(X_vec)[0][1]
-    return float(np.clip(proba_non_clickbait, 0.0, 1.0))
+    try:
+        X_vec = _vectorizer.transform([headline])
+        # We trained the model so that label 1 = NON-clickbait
+        proba_non_clickbait = _model.predict_proba(X_vec)[0][1]
+        return float(np.clip(proba_non_clickbait, 0.0, 1.0))
+    except Exception as exc:
+        print(f"[clickbait_model] Prediction fallback triggered: {exc}")
+        return 0.7
